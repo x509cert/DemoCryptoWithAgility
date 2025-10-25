@@ -28,7 +28,7 @@ The utility automatically detects which version was used to encrypt a file and a
 - **AES-256 encryption** across all versions
 - **AES-GCM (Version 4)** - Authenticated Encryption with Associated Data (AEAD)
 - **HMAC-SHA256 authentication** (Versions 1-3) for tamper detection
-- **Argon2id** (Versions 3 & 4) - memory-hard KDF resistant to GPU attacks
+- **Argon2** (Versions 3 & 4) - memory-hard KDF resistant to GPU attacks
 - **PBKDF2-SHA256** (Versions 1 & 2) - industry-standard key derivation
 - **Cryptographically secure random** salt, IV, and nonce generation
 - **Constant-time comparison** for authentication tag verification (timing attack protection)
@@ -74,7 +74,7 @@ dotnet build -c Release
 
 ### Basic Commands
 
-**Encrypt a file** (defaults to Version 4 - AES-GCM with Argon2id):
+**Encrypt a file** (defaults to Version 4 - AES-GCM with Argon2):
 ```bash
 dotnet run -- encrypt document.txt document.enc "MySecureP@ssw0rd!"
 ```
@@ -107,12 +107,12 @@ dotnet run -- --help
 ### Example Workflow
 
 ```bash
-# Encrypt with latest version (AES-GCM + Argon2id)
+# Encrypt with latest version (AES-GCM + Argon2)
 dotnet run -- encrypt secret.txt secret.enc "Str0ng!Pass"
 
 # Inspect the encrypted file
 dotnet run -- dump secret.enc
-# Output shows: Version 4 (AES-GCM with Argon2id AEAD)
+# Output shows: Version 4 (AES-GCM with Argon2 AEAD)
 
 # Decrypt the file
 dotnet run -- decrypt secret.enc secret-decrypted.txt "Str0ng!Pass"
@@ -163,7 +163,7 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 - **Mode**: GCM (Galois/Counter Mode) - AEAD
 - **Nonce**: 12 bytes (96 bits - optimal for GCM)
 - **Authentication Tag**: 16 bytes (128 bits)
-- **KDF**: Argon2id
+- **KDF**: Argon2
   - Memory: 64 MB (65,536 KiB)
   - Iterations: 4
   - Parallelism: 8 threads
@@ -178,10 +178,10 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 - Recommended by NIST SP 800-38D
 - Industry standard for TLS 1.3, QUIC, and IPsec
 
-### Version 3 - Argon2id + CBC + HMAC
+### Version 3 - Argon2 + CBC + HMAC
 - **Algorithm**: AES-256-CBC
 - **Mode**: CBC with random IV
-- **KDF**: Argon2id
+- **KDF**: Argon2
   - Memory: 64 MB (65,536 KiB)
   - Iterations: 4
   - Parallelism: 8 threads
@@ -189,7 +189,7 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 - **Authentication**: HMAC-SHA256 (Encrypt-then-MAC)
 - **Padding**: PKCS7
 
-**Why Argon2id?**
+**Why Argon2?**
 - Memory-hard design resists GPU/ASIC attacks
 - Winner of Password Hashing Competition (2015)
 - Recommended by OWASP for password storage
