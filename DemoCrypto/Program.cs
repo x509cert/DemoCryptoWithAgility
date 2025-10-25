@@ -153,6 +153,67 @@ catch (Exception ex)
 #endregion
 
 #region Helper Methods
+/// <summary>
+/// Generates a unique, cryptographically secure value of the specified length.
+/// Uses high-resolution timestamp, process/thread ID, and random entropy to ensure uniqueness.
+/// </summary>
+/// <param name="length">The desired length in bytes</param>
+/// <param name="purpose">A string describing the purpose (e.g., "salt", "iv", "nonce") for additional entropy</param>
+/// <returns>A unique byte array of the specified length</returns>
+byte[] GenerateUniqueValue(int length, string purpose)
+{
+    // Combine multiple sources of uniqueness:
+    // 1. High-resolution timestamp (nanosecond precision)
+    // 2. Process and thread identifiers
+    // 3. Random cryptographic bytes
+    // 4. Purpose string for domain separation
+    
+    using var sha256 = SHA256.Create();
+    
+    // Get high-resolution timestamp
+    var timestamp = DateTime.UtcNow.Ticks; // 100-nanosecond intervals since 1/1/0001
+    var timestampBytes = BitConverter.GetBytes(timestamp);
+    
+    // Get process and thread identifiers for additional uniqueness
+    var processId = Environment.ProcessId;
+    var threadId = Environment.CurrentManagedThreadId;
+    var processBytes = BitConverter.GetBytes(processId);
+    var threadBytes = BitConverter.GetBytes(threadId);
+    
+    // Get high-performance counter for additional entropy
+    var stopwatch = System.Diagnostics.Stopwatch.GetTimestamp();
+    var stopwatchBytes = BitConverter.GetBytes(stopwatch);
+    
+    // Generate random bytes for cryptographic strength
+    var randomBytes = RandomNumberGenerator.GetBytes(32);
+    
+    // Combine all sources
+    var combinedData = new List<byte>();
+    combinedData.AddRange(timestampBytes);
+    combinedData.AddRange(processBytes);
+    combinedData.AddRange(threadBytes);
+    combinedData.AddRange(stopwatchBytes);
+    combinedData.AddRange(randomBytes);
+    combinedData.AddRange(Encoding.UTF8.GetBytes(purpose));
+    
+    // Hash the combined data
+    var hash = sha256.ComputeHash(combinedData.ToArray());
+    
+    // If we need more bytes than the hash provides, use HKDF to expand
+    if (length <= hash.Length)
+    {
+        return hash[..length];
+    }
+    else
+    {
+        // Use HKDF to expand the key material
+        var hkdf = new byte[length];
+        var info = Encoding.UTF8.GetBytes($"{purpose}-expansion");
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, hash, hkdf, salt: Array.Empty<byte>(), info);
+        return hkdf;
+    }
+}
+
 void DumpEncryptedFile(string inputFile)
 {
     using var fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
@@ -370,7 +431,7 @@ void EncryptFileWithHmac(string inputFile, string outputFile, string password, b
 
 void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, string password)
 {
-    var salt = RandomNumberGenerator.GetBytes(32);
+    var salt = GenerateUniqueValue(32, "salt-v1-pbkdf2-ecb");
     fsEncrypted.Write(salt);
 
     using var aes = Aes.Create();
@@ -411,7 +472,7 @@ void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, str
 
 void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, string password)
 {
-    var salt = RandomNumberGenerator.GetBytes(32);
+    var salt = GenerateUniqueValue(32, "salt-v2-pbkdf2-cbc");
     fsEncrypted.Write(salt);
 
     using var aes = Aes.Create();
@@ -425,7 +486,7 @@ void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, str
         32
     );
     aes.Key = encryptionKey;
-    aes.IV = RandomNumberGenerator.GetBytes(16);
+    aes.IV = GenerateUniqueValue(16, "iv-v2-pbkdf2-cbc");
     fsEncrypted.Write(aes.IV);
 
     using (var cs = new CryptoStream(fsEncrypted, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true))
@@ -453,7 +514,7 @@ void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, str
 
 void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, string password)
 {
-    var salt = RandomNumberGenerator.GetBytes(32);
+    var salt = GenerateUniqueValue(32, "salt-v3-argon2-cbc");
     fsEncrypted.Write(salt);
 
     var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
@@ -475,7 +536,7 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     aes.Mode = CipherMode.CBC;
     aes.Padding = PaddingMode.PKCS7;
     aes.Key = encryptionKey;
-    aes.IV = RandomNumberGenerator.GetBytes(16);
+    aes.IV = GenerateUniqueValue(16, "iv-v3-argon2-cbc");
     fsEncrypted.Write(aes.IV);
 
     using (var cs = new CryptoStream(fsEncrypted, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true))
@@ -495,7 +556,7 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
 
 void EncryptFileWithGcmVersion4(FileStream fsInput, FileStream fsEncrypted, string password)
 {
-    var salt = RandomNumberGenerator.GetBytes(32);
+    var salt = GenerateUniqueValue(32, "salt-v4-argon2-gcm");
     fsEncrypted.Write(salt);
 
     // Derive encryption key using Argon2
@@ -508,7 +569,7 @@ void EncryptFileWithGcmVersion4(FileStream fsInput, FileStream fsEncrypted, stri
     }.GetBytes(32);
 
     // GCM uses a 12-byte nonce (96 bits is optimal for GCM)
-    var nonce = RandomNumberGenerator.GetBytes(12);
+    var nonce = GenerateUniqueValue(12, "nonce-v4-argon2-gcm");
     fsEncrypted.Write(nonce);
 
     // Read plaintext into memory (GCM requires knowing the plaintext length upfront)
@@ -833,4 +894,4 @@ class LimitedStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
-#endregion#endregion
+#endregion
