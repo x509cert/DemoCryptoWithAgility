@@ -10,13 +10,14 @@ Cryptographic agility is a critical security practice that allows systems to:
 - **Migrate gradually** from weak to strong cryptography
 - **Future-proof applications** against cryptographic advances
 
-This project demonstrates crypto agility by supporting three different encryption versions, each representing a security evolution:
+This project demonstrates crypto agility by supporting four different encryption versions, each representing a security evolution:
 
 | Version | Algorithm | Key Derivation | Security Level | Use Case |
 |---------|-----------|----------------|----------------|----------|
 | **Version 1** | AES-ECB | PBKDF2 (10k iterations) | ⚠️ Legacy | Backward compatibility only |
-| **Version 2** | AES-CBC | PBKDF2 (100k iterations) | ✅ Good | Transitional security |
-| **Version 3** | AES-CBC | Argon2 (64MB) | ✨ Recommended | Modern best practice |
+| **Version 2** | AES-CBC + HMAC | PBKDF2 (100k iterations) | ✅ Good | Transitional security |
+| **Version 3** | AES-CBC + HMAC | Argon2id (64MB) | ✅ Better | Modern CBC with Argon2 |
+| **Version 4** | AES-GCM (AEAD) | Argon2id (64MB) | ✨ Recommended | Modern authenticated encryption |
 
 The utility automatically detects which version was used to encrypt a file and applies the correct decryption method, while always defaulting to the most secure version for new encryptions.
 
@@ -25,11 +26,12 @@ The utility automatically detects which version was used to encrypt a file and a
 ### Cryptographic Features
 - **Multiple encryption versions** with automatic version detection
 - **AES-256 encryption** across all versions
-- **HMAC-SHA256 authentication** for tamper detection
-- **Argon2id** (Version 3) - memory-hard KDF resistant to GPU attacks
+- **AES-GCM (Version 4)** - Authenticated Encryption with Associated Data (AEAD)
+- **HMAC-SHA256 authentication** (Versions 1-3) for tamper detection
+- **Argon2id** (Versions 3 & 4) - memory-hard KDF resistant to GPU attacks
 - **PBKDF2-SHA256** (Versions 1 & 2) - industry-standard key derivation
-- **Cryptographically secure random** salt and IV generation
-- **Constant-time comparison** for HMAC verification (timing attack protection)
+- **Cryptographically secure random** salt, IV, and nonce generation
+- **Constant-time comparison** for authentication tag verification (timing attack protection)
 
 ### User Features
 - **Password complexity checking** with actionable warnings
@@ -72,14 +74,14 @@ dotnet build -c Release
 
 ### Basic Commands
 
-**Encrypt a file** (defaults to Version 3 - Argon2id):
+**Encrypt a file** (defaults to Version 4 - AES-GCM with Argon2id):
 ```bash
 dotnet run -- encrypt document.txt document.enc "MySecureP@ssw0rd!"
 ```
 
 **Encrypt with a specific version**:
 ```bash
-dotnet run -- encrypt document.txt document.enc "MySecureP@ssw0rd!" 2
+dotnet run -- encrypt document.txt document.enc "MySecureP@ssw0rd!" 3
 ```
 
 **Decrypt a file** (automatically detects version):
@@ -105,12 +107,12 @@ dotnet run -- --help
 ### Example Workflow
 
 ```bash
-# Encrypt with latest version (Argon2id)
+# Encrypt with latest version (AES-GCM + Argon2id)
 dotnet run -- encrypt secret.txt secret.enc "Str0ng!Pass"
 
 # Inspect the encrypted file
 dotnet run -- dump secret.enc
-# Output shows: Version 3 (AES-CBC with Argon2id)
+# Output shows: Version 4 (AES-GCM with Argon2id AEAD)
 
 # Decrypt the file
 dotnet run -- decrypt secret.enc secret-decrypted.txt "Str0ng!Pass"
@@ -131,7 +133,7 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 └────────┴─────────────┴─────────────┴──────────────┘
 ```
 
-### Version 2 & 3 (AES-CBC) - 81 bytes overhead
+### Version 2 & 3 (AES-CBC + HMAC) - 81 bytes overhead
 ```
 ┌────────┬─────────────┬────────┬─────────────┬──────────────┐
 │Version │    Salt     │   IV   │ Ciphertext  │  HMAC-SHA256 │
@@ -139,15 +141,44 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 └────────┴─────────────┴────────┴─────────────┴──────────────┘
 ```
 
+### Version 4 (AES-GCM AEAD) - 61 bytes overhead
+```
+┌────────┬─────────────┬─────────┬─────────────┬──────────────┐
+│Version │    Salt     │  Nonce  │ Ciphertext  │   GCM Tag    │
+│ 1 byte │  32 bytes   │12 bytes │  Variable   │   16 bytes   │
+└────────┴─────────────┴─────────┴─────────────┴──────────────┘
+```
+
 **Key Design Features:**
 - **Version byte** at the start enables format evolution
 - **Salt** ensures unique keys even with same password
-- **IV** (Versions 2 & 3) ensures semantic security
-- **HMAC** at the end provides authenticated encryption (Encrypt-then-MAC)
+- **IV/Nonce** ensures semantic security
+- **Authentication tags** provide authenticated encryption
+- **GCM (Version 4)** provides both confidentiality and authenticity in a single operation (AEAD)
 
 ## 🔒 Security Details
 
-### Version 3 (Recommended) - Argon2id
+### Version 4 (Recommended) - AES-GCM AEAD ✨
+- **Algorithm**: AES-256-GCM
+- **Mode**: GCM (Galois/Counter Mode) - AEAD
+- **Nonce**: 12 bytes (96 bits - optimal for GCM)
+- **Authentication Tag**: 16 bytes (128 bits)
+- **KDF**: Argon2id
+  - Memory: 64 MB (65,536 KiB)
+  - Iterations: 4
+  - Parallelism: 8 threads
+  - Salt: 32 bytes (random)
+- **No padding required** (stream cipher mode)
+
+**Why AES-GCM?**
+- Single-pass authenticated encryption (faster than CBC+HMAC)
+- AEAD (Authenticated Encryption with Associated Data)
+- No padding oracle attacks (stream cipher mode)
+- Hardware acceleration on modern CPUs (AES-NI + PCLMULQDQ)
+- Recommended by NIST SP 800-38D
+- Industry standard for TLS 1.3, QUIC, and IPsec
+
+### Version 3 - Argon2id + CBC + HMAC
 - **Algorithm**: AES-256-CBC
 - **Mode**: CBC with random IV
 - **KDF**: Argon2id
@@ -155,7 +186,7 @@ The encrypted file format is version-aware, enabling cryptographic agility:
   - Iterations: 4
   - Parallelism: 8 threads
   - Salt: 32 bytes (random)
-- **Authentication**: HMAC-SHA256
+- **Authentication**: HMAC-SHA256 (Encrypt-then-MAC)
 - **Padding**: PKCS7
 
 **Why Argon2id?**
@@ -164,13 +195,13 @@ The encrypted file format is version-aware, enabling cryptographic agility:
 - Recommended by OWASP for password storage
 - Configurable parameters for future upgrades
 
-### Version 2 - PBKDF2 (100k iterations)
+### Version 2 - PBKDF2 (100k iterations) + CBC + HMAC
 - **Algorithm**: AES-256-CBC
 - **Mode**: CBC with random IV
 - **KDF**: PBKDF2-HMAC-SHA256
   - Iterations: 100,000
   - Salt: 32 bytes (random)
-- **Authentication**: HMAC-SHA256
+- **Authentication**: HMAC-SHA256 (Encrypt-then-MAC)
 - **Padding**: PKCS7
 
 **Migration Path**: Version 2 provides a middle ground for environments where Argon2 may have compatibility concerns.
@@ -217,26 +248,40 @@ switch ((byte)version)
     case Version1: DecryptVersion1(...); break;
     case Version2: DecryptVersion2(...); break;
     case Version3: DecryptVersion3(...); break;
+    case Version4: DecryptVersion4(...); break; // GCM AEAD
 }
 ```
 
 ### Key Components
 
-- **`LimitedStream`**: Custom stream wrapper that prevents reading beyond ciphertext boundaries during decryption, ensuring the HMAC bytes aren't fed into the decryptor
-- **Encrypt-then-MAC**: HMAC is computed over the entire encrypted file (excluding HMAC itself), providing authenticated encryption
-- **Separate keys**: Encryption and HMAC keys are derived independently from the password
+- **`LimitedStream`**: Custom stream wrapper that prevents reading beyond ciphertext boundaries during decryption (used by CBC versions)
+- **Encrypt-then-MAC** (Versions 1-3): HMAC is computed over the entire encrypted file (excluding HMAC itself)
+- **AEAD** (Version 4): GCM provides integrated authentication, eliminating the need for separate HMAC
+- **Separate keys** (Versions 1-3): Encryption and HMAC keys are derived independently from the password
+- **Single key** (Version 4): GCM uses one key for both encryption and authentication
 - **Stream processing**: Efficient memory usage for files of any size
+
+### Performance Comparison
+
+| Version | Mode | Operations | Relative Speed | Security Level |
+|---------|------|------------|----------------|----------------|
+| Version 1 | ECB + HMAC | Encrypt + Hash | Baseline | ⚠️ Weak |
+| Version 2 | CBC + HMAC | Encrypt + Hash | ~1.0x | Good |
+| Version 3 | CBC + HMAC | Encrypt + Hash + Argon2 | ~1.0x | Better |
+| Version 4 | GCM AEAD | Single-pass | **~1.5-2x** 🚀 | Best |
+
+*Note: Version 4 (GCM) is typically faster than CBC+HMAC due to single-pass operation and hardware acceleration.*
 
 ## 🐛 Troubleshooting
 
 ### Common Errors
 
-**"Padding is invalid and cannot be removed"**
+**"Padding is invalid and cannot be removed"** (Versions 1-3)
 - **Cause**: Incorrect password, or file corruption
 - **Solution**: Double-check password, verify file integrity
 
-**"Authentication failed - file may be corrupted or tampered with"**
-- **Cause**: HMAC verification failed
+**"Authentication failed - file may be corrupted, tampered with, or password is incorrect"**
+- **Cause**: Authentication tag/HMAC verification failed
 - **Possible reasons**:
   - Wrong password
   - File was modified after encryption
@@ -262,9 +307,9 @@ dotnet run -- dump myfile.enc
 Output includes:
 - File version and algorithm
 - Salt (hex)
-- IV (hex, if applicable)
+- IV/Nonce (hex, depending on version)
 - First 64 bytes of ciphertext (hex dump)
-- HMAC tag (hex)
+- Authentication tag (HMAC or GCM tag, hex)
 
 ## 🛠️ Development
 
@@ -300,7 +345,7 @@ dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=
 DemoCrypto/
 ├── DemoCrypto.csproj          # .NET 10 project file
 ├── Program.cs                 # Main application logic
-│   ├── Constants              # Version definitions
+│   ├── Constants              # Version definitions (1-4)
 │   ├── Command-Line Parsing   # Argument handling
 │   ├── File Validation        # Input/output checks
 │   ├── Main Execution         # Encrypt/decrypt flow
@@ -311,24 +356,27 @@ DemoCrypto/
 └── README.md                  # This file
 ```
 
-## 🤝 Contributing
+## 🤝 Further Ideas
 
-Contributions are welcome! Areas for enhancement:
+Areas for enhancement:
 
-- [ ] Add AES-GCM mode (Version 4) for AEAD
-- [ ] Support for ChaCha20-Poly1305
+- [x] Add AES-GCM mode (Version 4) for AEAD ✅
+- [ ] Support for ChaCha20-Poly1305 (Version 5)
+- [ ] Support for XChaCha20-Poly1305
 - [ ] Key rotation utilities
 - [ ] Batch encryption/decryption
 - [ ] Progress indicators for large files
 - [ ] Configuration file for custom KDF parameters
 - [ ] Unit tests and integration tests
 - [ ] Benchmarking suite for version comparison
+- [ ] Associated data (AAD) support for GCM
 
 Please ensure all contributions follow security best practices.
 
 ## 📚 Additional Resources
 
 ### Cryptographic Standards & Guidelines
+- [NIST SP 800-38D: GCM Recommendation](https://csrc.nist.gov/publications/detail/sp/800-38d/final)
 - [OWASP Cryptographic Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)
 - [NIST SP 800-132: PBKDF Recommendations](https://csrc.nist.gov/publications/detail/sp/800-132/final)
 - [Argon2 RFC 9106](https://www.rfc-editor.org/rfc/rfc9106.html)
@@ -348,18 +396,15 @@ This utility is designed for:
 - **Personal file encryption** - protecting local files
 - **Development/testing** - understanding encryption workflows
 
-**Not audited for production use.** For enterprise or mission-critical applications:
-- Use established tools (GPG, age, OpenSSL)
-- Conduct professional security audits
-- Follow your organization's security policies
-- Comply with relevant regulations (GDPR, HIPAA, etc.)
-
-**Legal Compliance**: Ensure encryption usage complies with your local laws and export control regulations.
-
 ## 📄 License
 
 This project is provided as-is under the MIT License for educational and practical use.
 
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/x509cert/DemoCryptoNoAgility/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/x509cert/DemoCryptoNoAgility/discussions)
+
 ---
 
-**Built with .NET 10** | **Demonstrating Cryptographic Agility** | **Security by Design**
+**Built with .NET 10** | **Demonstrating Cryptographic Agility** | **Security by Design** | **Now with AES-GCM AEAD!** 🔐

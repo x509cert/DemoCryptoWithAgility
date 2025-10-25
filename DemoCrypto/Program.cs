@@ -3,10 +3,11 @@ using System.Text;
 using Konscious.Security.Cryptography;
 
 #region Constants
-const byte Version1 = 1;
-const byte Version2 = 2;
-const byte Version3 = 3;
-const byte DefaultVersion = Version3;
+const byte V1_AES_ECB_HMAC_PBKDF2_10K = 1;
+const byte V2_AES_CBC_HMAC_PBKDF2_100K = 2;
+const byte V3_AES_CBC_HMAC_Argon2 = 3;
+const byte V4_AES_GCM_Argon2 = 4;
+const byte DefaultVersion = V4_AES_GCM_Argon2;
 #endregion
 
 #region Command-Line Parsing
@@ -66,9 +67,13 @@ var password = args[3];
 byte versionToUse = DefaultVersion;
 if (command == "encrypt" && args.Length > 4)
 {
-    if (!byte.TryParse(args[4], out versionToUse) || (versionToUse != Version1 && versionToUse != Version2 && versionToUse != Version3))
+    if (!byte.TryParse(args[4], out versionToUse) || 
+        (versionToUse != V1_AES_ECB_HMAC_PBKDF2_10K && 
+         versionToUse != V2_AES_CBC_HMAC_PBKDF2_100K && 
+         versionToUse != V3_AES_CBC_HMAC_Argon2 && 
+         versionToUse != V4_AES_GCM_Argon2))
     {
-        Console.Error.WriteLine($"Invalid version: {args[4]}. Supported versions are 1 (AES-ECB/PBKDF2-10k), 2 (AES-CBC/PBKDF2-100k), and 3 (AES-CBC/Argon2).");
+        Console.Error.WriteLine($"Invalid version: {args[4]}. Supported versions are 1 (AES-ECB/PBKDF2-10k), 2 (AES-CBC/PBKDF2-100k), 3 (AES-CBC/Argon2), and 4 (AES-GCM/Argon2).");
         return 1;
     }
 }
@@ -102,9 +107,10 @@ try
         EncryptFileWithHmac(inputFile, outputFile, password, versionToUse);
         var algorithm = versionToUse switch
         {
-            Version1 => "AES-ECB with PBKDF2 (10k iterations)",
-            Version2 => "AES-CBC with PBKDF2 (100k iterations)",
-            Version3 => "AES-CBC with Argon2id",
+            V1_AES_ECB_HMAC_PBKDF2_10K => "AES-ECB with PBKDF2 (10k iterations)",
+            V2_AES_CBC_HMAC_PBKDF2_100K => "AES-CBC with PBKDF2 (100k iterations)",
+            V3_AES_CBC_HMAC_Argon2 => "AES-CBC with Argon2",
+            V4_AES_GCM_Argon2 => "AES-GCM with Argon2 (AEAD)",
             _ => "Unknown"
         };
         Console.WriteLine($"File encrypted to {outputFile} using version {versionToUse} ({algorithm})");
@@ -114,9 +120,10 @@ try
         var version = DecryptFileWithHmacVerification(inputFile, outputFile, password);
         var algorithm = version switch
         {
-            Version1 => "AES-ECB with PBKDF2 (10k iterations)",
-            Version2 => "AES-CBC with PBKDF2 (100k iterations)",
-            Version3 => "AES-CBC with Argon2id",
+            V1_AES_ECB_HMAC_PBKDF2_10K => "AES-ECB with PBKDF2 (10k iterations)",
+            V2_AES_CBC_HMAC_PBKDF2_100K => "AES-CBC with PBKDF2 (100k iterations)",
+            V3_AES_CBC_HMAC_Argon2 => "AES-CBC with Argon2",
+            V4_AES_GCM_Argon2 => "AES-GCM with Argon2 (AEAD)",
             _ => "Unknown"
         };
         Console.WriteLine($"File decrypted to {outputFile} (version {version} - {algorithm})");
@@ -156,9 +163,10 @@ void DumpEncryptedFile(string inputFile)
     Console.WriteLine($"Version: {version}");
     Console.WriteLine($"Algorithm: {version switch
     {
-        Version1 => "AES-ECB with PBKDF2 (10k iterations)",
-        Version2 => "AES-CBC with PBKDF2 (100k iterations)",
-        Version3 => "AES-CBC with Argon2id",
+        V1_AES_ECB_HMAC_PBKDF2_10K => "AES-ECB with PBKDF2 (10k iterations)",
+        V2_AES_CBC_HMAC_PBKDF2_100K => "AES-CBC with PBKDF2 (100k iterations)",
+        V3_AES_CBC_HMAC_Argon2 => "AES-CBC with Argon2",
+        V4_AES_GCM_Argon2 => "AES-GCM with Argon2 (AEAD)",
         _ => "Unknown"
     }}");
     Console.WriteLine();
@@ -175,7 +183,7 @@ void DumpEncryptedFile(string inputFile)
     Console.WriteLine($"  {Convert.ToHexString(salt)}");
     Console.WriteLine();
     
-    if (version == Version2 || version == Version3)
+    if (version == V2_AES_CBC_HMAC_PBKDF2_100K || version == V3_AES_CBC_HMAC_Argon2)
     {
         if (fs.Length < 49)
         {
@@ -189,15 +197,30 @@ void DumpEncryptedFile(string inputFile)
         Console.WriteLine($"  {Convert.ToHexString(iv)}");
         Console.WriteLine();
     }
-    else if (version == Version1)
+    else if (version == V4_AES_GCM_Argon2)
+    {
+        if (fs.Length < 45)
+        {
+            Console.WriteLine("File too small to contain nonce");
+            return;
+        }
+        
+        var nonce = new byte[12];
+        fs.ReadExactly(nonce);
+        Console.WriteLine($"Nonce (12 bytes):");
+        Console.WriteLine($"  {Convert.ToHexString(nonce)}");
+        Console.WriteLine();
+    }
+    else if (version == V1_AES_ECB_HMAC_PBKDF2_10K)
     {
         Console.WriteLine("IV: Not used (ECB mode)");
         Console.WriteLine();
     }
     
     var currentPosition = fs.Position;
-    var hmacSize = 32;
-    var ciphertextLength = fs.Length - currentPosition - hmacSize;
+    var authTagSize = version == V4_AES_GCM_Argon2 ? 16 : 32;
+    var authTagName = version == V4_AES_GCM_Argon2 ? "GCM Authentication Tag" : "HMAC-SHA256";
+    var ciphertextLength = fs.Length - currentPosition - authTagSize;
     
     if (ciphertextLength <= 0)
     {
@@ -222,11 +245,11 @@ void DumpEncryptedFile(string inputFile)
     }
     Console.WriteLine();
     
-    fs.Position = fs.Length - hmacSize;
-    var hmac = new byte[hmacSize];
-    fs.ReadExactly(hmac);
-    Console.WriteLine($"HMAC-SHA256 (32 bytes):");
-    Console.WriteLine($"  {Convert.ToHexString(hmac)}");
+    fs.Position = fs.Length - authTagSize;
+    var authTag = new byte[authTagSize];
+    fs.ReadExactly(authTag);
+    Console.WriteLine($"{authTagName} ({authTagSize} bytes):");
+    Console.WriteLine($"  {Convert.ToHexString(authTag)}");
 }
 
 void CheckPasswordComplexity(string password)
@@ -295,11 +318,12 @@ void ShowHelp()
         Version options:
           1 - AES-ECB with PBKDF2 10,000 iterations (legacy, least secure)
           2 - AES-CBC with PBKDF2 100,000 iterations (better)
-          3 - AES-CBC with Argon2id 64MB memory (default, recommended)
+          3 - AES-CBC with Argon2 64MB memory (good)
+          4 - AES-GCM with Argon2 64MB memory (default, recommended, AEAD)
 
         Examples:
           encrypt document.txt document.enc MyP@ssw0rd!
-          encrypt document.txt document.enc MyP@ssw0rd! 3
+          encrypt document.txt document.enc MyP@ssw0rd! 4
           decrypt document.enc document.txt MyP@ssw0rd!
           dump document.enc
 
@@ -319,14 +343,17 @@ void EncryptFileWithHmac(string inputFile, string outputFile, string password, b
 
     switch (version)
     {
-        case Version1:
+        case V1_AES_ECB_HMAC_PBKDF2_10K:
             EncryptFileWithHmacVersion1(fsInput, fsEncrypted, password);
             break;
-        case Version2:
+        case V2_AES_CBC_HMAC_PBKDF2_100K:
             EncryptFileWithHmacVersion2(fsInput, fsEncrypted, password);
             break;
-        case Version3:
+        case V3_AES_CBC_HMAC_Argon2:
             EncryptFileWithHmacVersion3(fsInput, fsEncrypted, password);
+            break;
+        case V4_AES_GCM_Argon2:
+            EncryptFileWithGcmVersion4(fsInput, fsEncrypted, password);
             break;
         default:
             throw new NotSupportedException($"Encryption version {version} not implemented");
@@ -454,6 +481,43 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     var tag = hmac.ComputeHash(buffer);
     fsEncrypted.Write(tag);
 }
+
+void EncryptFileWithGcmVersion4(FileStream fsInput, FileStream fsEncrypted, string password)
+{
+    var salt = RandomNumberGenerator.GetBytes(32);
+    fsEncrypted.Write(salt);
+
+    // Derive encryption key using Argon2
+    var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
+
+    // GCM uses a 12-byte nonce (96 bits is optimal for GCM)
+    var nonce = RandomNumberGenerator.GetBytes(12);
+    fsEncrypted.Write(nonce);
+
+    // Read plaintext into memory (GCM requires knowing the plaintext length upfront)
+    var plaintext = new byte[fsInput.Length];
+    fsInput.ReadExactly(plaintext);
+
+    // Allocate buffer for ciphertext (same size as plaintext)
+    var ciphertext = new byte[plaintext.Length];
+    
+    // GCM authentication tag (16 bytes / 128 bits)
+    var tag = new byte[16];
+
+    // Encrypt using AES-GCM
+    using var aesGcm = new AesGcm(encryptionKey, 16);
+    aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
+
+    // Write ciphertext and tag
+    fsEncrypted.Write(ciphertext);
+    fsEncrypted.Write(tag);
+}
 #endregion
 
 #region Decryption Methods
@@ -466,15 +530,18 @@ byte DecryptFileWithHmacVerification(string inputFile, string outputFile, string
 
     switch ((byte)version)
     {
-        case Version1:
+        case V1_AES_ECB_HMAC_PBKDF2_10K:
             DecryptFileWithHmacVerificationVersion1(fsEncrypted, fsOutput, password);
-            return Version1;
-        case Version2:
+            return V1_AES_ECB_HMAC_PBKDF2_10K;
+        case V2_AES_CBC_HMAC_PBKDF2_100K:
             DecryptFileWithHmacVerificationVersion2(fsEncrypted, fsOutput, password);
-            return Version2;
-        case Version3:
+            return V2_AES_CBC_HMAC_PBKDF2_100K;
+        case V3_AES_CBC_HMAC_Argon2:
             DecryptFileWithHmacVerificationVersion3(fsEncrypted, fsOutput, password);
-            return Version3;
+            return V3_AES_CBC_HMAC_Argon2;
+        case V4_AES_GCM_Argon2:
+            DecryptFileWithGcmVersion4(fsEncrypted, fsOutput, password);
+            return V4_AES_GCM_Argon2;
         default:
             throw new NotSupportedException($"Unsupported file version: {version}");
     }
@@ -655,6 +722,59 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     using var limitedStream = new LimitedStream(fsEncrypted, ciphertextLength);
     using var cs = new CryptoStream(limitedStream, aes.CreateDecryptor(), CryptoStreamMode.Read);
     cs.CopyTo(fsOutput);
+}
+
+void DecryptFileWithGcmVersion4(FileStream fsEncrypted, FileStream fsOutput, string password)
+{
+    var salt = new byte[32];
+    fsEncrypted.ReadExactly(salt);
+
+    var nonce = new byte[12];
+    fsEncrypted.ReadExactly(nonce);
+
+    // Derive encryption key using Argon2
+    var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
+
+    var fileLength = fsEncrypted.Length;
+    var tagSize = 16;
+    if (fileLength < 1 + 32 + 12 + tagSize)
+    {
+        throw new InvalidOperationException("File too small to contain valid encrypted data");
+    }
+
+    // Calculate ciphertext length (total - version - salt - nonce - tag)
+    var ciphertextLength = fileLength - 1 - 32 - 12 - tagSize;
+    
+    // Read ciphertext
+    var ciphertext = new byte[ciphertextLength];
+    fsEncrypted.ReadExactly(ciphertext);
+
+    // Read authentication tag
+    var tag = new byte[tagSize];
+    fsEncrypted.ReadExactly(tag);
+
+    // Allocate buffer for plaintext
+    var plaintext = new byte[ciphertextLength];
+
+    // Decrypt and verify using AES-GCM
+    using var aesGcm = new AesGcm(encryptionKey, 16);
+    try
+    {
+        aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
+    }
+    catch (CryptographicException)
+    {
+        throw new CryptographicException("Authentication failed - file may be corrupted, tampered with, or password is incorrect");
+    }
+
+    // Write decrypted plaintext
+    fsOutput.Write(plaintext);
 }
 #endregion
 
