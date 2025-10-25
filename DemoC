@@ -1,15 +1,12 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Konscious.Security.Cryptography;
 
-#region Constants
 const byte Version1 = 1;
 const byte Version2 = 2;
 const byte Version3 = 3;
 const byte DefaultVersion = Version3;
-#endregion
 
-#region Command-Line Parsing
 if (args.Length == 0 || args[0] is "-h" or "--help" or "/?" or "help")
 {
     ShowHelp();
@@ -72,9 +69,7 @@ if (command == "encrypt" && args.Length > 4)
         return 1;
     }
 }
-#endregion
 
-#region File Validation
 if (!File.Exists(inputFile))
 {
     Console.Error.WriteLine($"Input file not found: {inputFile}");
@@ -91,9 +86,7 @@ if (File.Exists(outputFile))
         return 0;
     }
 }
-#endregion
 
-#region Main Execution
 try
 {
     if (command == "encrypt")
@@ -137,9 +130,7 @@ catch (Exception ex)
     Console.Error.WriteLine($"Error: {ex.Message}");
     return 1;
 }
-#endregion
 
-#region Helper Methods
 void DumpEncryptedFile(string inputFile)
 {
     using var fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
@@ -307,9 +298,7 @@ void ShowHelp()
           -h, --help  Show this help message
         """);
 }
-#endregion
 
-#region Encryption Methods
 void EncryptFileWithHmac(string inputFile, string outputFile, string password, byte version)
 {
     using var fsInput = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
@@ -419,20 +408,21 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     var salt = RandomNumberGenerator.GetBytes(32);
     fsEncrypted.Write(salt);
 
-    var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
-    argon2.Salt = salt;
-    argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536; // 64 MB
-    argon2.Iterations = 4;
+    var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
 
-    var encryptionKey = argon2.GetBytes(32);
-
-    argon2.Reset();
-    argon2.Salt = salt;
-    argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536;
-    argon2.Iterations = 4;
-    var hmacKey = argon2.GetBytes(32);
+    var hmacKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
 
     using var aes = Aes.Create();
     aes.Mode = CipherMode.CBC;
@@ -454,9 +444,7 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     var tag = hmac.ComputeHash(buffer);
     fsEncrypted.Write(tag);
 }
-#endregion
 
-#region Decryption Methods
 byte DecryptFileWithHmacVerification(string inputFile, string outputFile, string password)
 {
     using var fsEncrypted = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
@@ -606,12 +594,13 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     var iv = new byte[16];
     fsEncrypted.ReadExactly(iv);
 
-    var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
-    argon2.Salt = salt;
-    argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536; // 64 MB
-    argon2.Iterations = 4;
-    var hmacKey = argon2.GetBytes(32);
+    var hmacKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
 
     var fileLength = fsEncrypted.Length;
     var hmacSize = 32;
@@ -636,12 +625,13 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
         throw new CryptographicException("Authentication failed - file may be corrupted or tampered with");
     }
 
-    argon2.Reset();
-    argon2.Salt = salt;
-    argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536;
-    argon2.Iterations = 4;
-    var encryptionKey = argon2.GetBytes(32);
+    var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
+    {
+        Salt = salt,
+        DegreeOfParallelism = 8,
+        MemorySize = 65_536, // 64 MB
+        Iterations = 4
+    }.GetBytes(32);
 
     fsEncrypted.Position = 1 + 32 + 16;
 
@@ -656,9 +646,7 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     using var cs = new CryptoStream(limitedStream, aes.CreateDecryptor(), CryptoStreamMode.Read);
     cs.CopyTo(fsOutput);
 }
-#endregion
 
-#region Support Classes
 // Wrapper stream that limits reading to a specific number of bytes,
 // preventing reads beyond ciphertext boundaries during decryption
 // The class is essential because during decryption, the CryptoStream
@@ -699,4 +687,3 @@ class LimitedStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
-#endregion
