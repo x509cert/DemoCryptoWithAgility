@@ -644,6 +644,12 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     cs.CopyTo(fsOutput);
 }
 
+// Wrapper stream that limits reading to a specific number of bytes,
+// preventing reads beyond ciphertext boundaries during decryption
+// The class is essential because during decryption, the CryptoStream
+// needs to read only the encrypted data portion of the file (which ends before the HMAC tag).
+// Without this limitation, the CryptoStream might try to decrypt
+// the HMAC bytes as if they were part of the ciphertext, causing decryption errors
 class LimitedStream : Stream
 {
     private readonly Stream _baseStream;
