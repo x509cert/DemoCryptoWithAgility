@@ -48,8 +48,8 @@ The utility automatically detects which version was used to encrypt a file and a
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/x509cert/DemoCryptoNoAgility.git
-cd DemoCryptoNoAgility
+git clone https://github.com/x509cert/DemoCryptoWithAgility.git
+cd DemoCryptoWithAgility
 ```
 
 ### 2. Restore Dependencies
