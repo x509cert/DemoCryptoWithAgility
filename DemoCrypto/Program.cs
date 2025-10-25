@@ -4,7 +4,8 @@ using Konscious.Security.Cryptography;
 
 const byte Version1 = 1;
 const byte Version2 = 2;
-const byte DefaultVersion = Version2;
+const byte Version3 = 3;
+const byte DefaultVersion = Version3;
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "/?" or "help")
 {
@@ -13,11 +14,39 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "/?" or "help")
 }
 
 var command = args.Length > 0 ? args[0].ToLower() : "encrypt";
-if (command is not ("encrypt" or "decrypt"))
+if (command is not ("encrypt" or "decrypt" or "dump"))
 {
     Console.Error.WriteLine($"Unknown command: {command}");
     ShowHelp();
     return 1;
+}
+
+if (command == "dump")
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Insufficient arguments for dump command.");
+        ShowHelp();
+        return 1;
+    }
+    
+    var dumpFile = args[1];
+    if (!File.Exists(dumpFile))
+    {
+        Console.Error.WriteLine($"Input file not found: {dumpFile}");
+        return 1;
+    }
+    
+    try
+    {
+        DumpEncryptedFile(dumpFile);
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error dumping file: {ex.Message}");
+        return 1;
+    }
 }
 
 if (args.Length < 4)
@@ -34,9 +63,9 @@ var password = args[3];
 byte versionToUse = DefaultVersion;
 if (command == "encrypt" && args.Length > 4)
 {
-    if (!byte.TryParse(args[4], out versionToUse) || (versionToUse != Version1 && versionToUse != Version2))
+    if (!byte.TryParse(args[4], out versionToUse) || (versionToUse != Version1 && versionToUse != Version2 && versionToUse != Version3))
     {
-        Console.Error.WriteLine($"Invalid version: {args[4]}. Supported versions are 1 (PBKDF2) and 2 (Argon2).");
+        Console.Error.WriteLine($"Invalid version: {args[4]}. Supported versions are 1 (AES-ECB/PBKDF2-10k), 2 (AES-CBC/PBKDF2-100k), and 3 (AES-CBC/Argon2).");
         return 1;
     }
 }
@@ -64,13 +93,25 @@ try
     {
         CheckPasswordComplexity(password);
         EncryptFileWithHmac(inputFile, outputFile, password, versionToUse);
-        var algorithm = versionToUse == Version1 ? "PBKDF2" : "Argon2";
+        var algorithm = versionToUse switch
+        {
+            Version1 => "AES-ECB with PBKDF2 (10k iterations)",
+            Version2 => "AES-CBC with PBKDF2 (100k iterations)",
+            Version3 => "AES-CBC with Argon2id",
+            _ => "Unknown"
+        };
         Console.WriteLine($"File encrypted to {outputFile} using version {versionToUse} ({algorithm})");
     }
     else
     {
         var version = DecryptFileWithHmacVerification(inputFile, outputFile, password);
-        var algorithm = version == Version1 ? "PBKDF2" : "Argon2";
+        var algorithm = version switch
+        {
+            Version1 => "AES-ECB with PBKDF2 (10k iterations)",
+            Version2 => "AES-CBC with PBKDF2 (100k iterations)",
+            Version3 => "AES-CBC with Argon2id",
+            _ => "Unknown"
+        };
         Console.WriteLine($"File decrypted to {outputFile} (version {version} - {algorithm})");
     }
     return 0;
@@ -88,6 +129,95 @@ catch (Exception ex)
 {
     Console.Error.WriteLine($"Error: {ex.Message}");
     return 1;
+}
+
+void DumpEncryptedFile(string inputFile)
+{
+    using var fs = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
+    
+    if (fs.Length < 1)
+    {
+        throw new InvalidOperationException("File is empty");
+    }
+    
+    var version = (byte)fs.ReadByte();
+    Console.WriteLine($"=== Encrypted File Dump ===");
+    Console.WriteLine($"File: {inputFile}");
+    Console.WriteLine($"File Size: {fs.Length} bytes");
+    Console.WriteLine($"Version: {version}");
+    Console.WriteLine($"Algorithm: {version switch
+    {
+        Version1 => "AES-ECB with PBKDF2 (10k iterations)",
+        Version2 => "AES-CBC with PBKDF2 (100k iterations)",
+        Version3 => "AES-CBC with Argon2id",
+        _ => "Unknown"
+    }}");
+    Console.WriteLine();
+    
+    if (fs.Length < 33)
+    {
+        Console.WriteLine("File too small to contain valid encrypted data");
+        return;
+    }
+    
+    var salt = new byte[32];
+    fs.ReadExactly(salt);
+    Console.WriteLine($"Salt (32 bytes):");
+    Console.WriteLine($"  {Convert.ToHexString(salt)}");
+    Console.WriteLine();
+    
+    if (version == Version2 || version == Version3)
+    {
+        if (fs.Length < 49)
+        {
+            Console.WriteLine("File too small to contain IV");
+            return;
+        }
+        
+        var iv = new byte[16];
+        fs.ReadExactly(iv);
+        Console.WriteLine($"IV (16 bytes):");
+        Console.WriteLine($"  {Convert.ToHexString(iv)}");
+        Console.WriteLine();
+    }
+    else if (version == Version1)
+    {
+        Console.WriteLine("IV: Not used (ECB mode)");
+        Console.WriteLine();
+    }
+    
+    var currentPosition = fs.Position;
+    var hmacSize = 32;
+    var ciphertextLength = fs.Length - currentPosition - hmacSize;
+    
+    if (ciphertextLength <= 0)
+    {
+        Console.WriteLine("No ciphertext found");
+        return;
+    }
+    
+    Console.WriteLine($"Ciphertext starts at byte: {currentPosition}");
+    Console.WriteLine($"Ciphertext length: {ciphertextLength} bytes");
+    
+    var bytesToRead = (int)Math.Min(64, ciphertextLength);
+    var ciphertextSample = new byte[bytesToRead];
+    fs.ReadExactly(ciphertextSample);
+    
+    Console.WriteLine($"First {bytesToRead} bytes of ciphertext:");
+    for (int i = 0; i < bytesToRead; i += 16)
+    {
+        var lineLength = Math.Min(16, bytesToRead - i);
+        var lineBytes = new byte[lineLength];
+        Array.Copy(ciphertextSample, i, lineBytes, 0, lineLength);
+        Console.WriteLine($"  {i:X4}: {Convert.ToHexString(lineBytes)}");
+    }
+    Console.WriteLine();
+    
+    fs.Position = fs.Length - hmacSize;
+    var hmac = new byte[hmacSize];
+    fs.ReadExactly(hmac);
+    Console.WriteLine($"HMAC-SHA256 (32 bytes):");
+    Console.WriteLine($"  {Convert.ToHexString(hmac)}");
 }
 
 void CheckPasswordComplexity(string password)
@@ -151,15 +281,18 @@ void ShowHelp()
         Usage:
           encrypt <inputFile> <outputFile> <password> [version]  - Encrypt a file
           decrypt <inputFile> <outputFile> <password>            - Decrypt a file
+          dump <inputFile>                                        - Dump encrypted file metadata
 
         Version options:
-          1 - PBKDF2 with 100,000 iterations (legacy)
-          2 - Argon2id with 64MB memory (default, recommended)
+          1 - AES-ECB with PBKDF2 10,000 iterations (legacy, least secure)
+          2 - AES-CBC with PBKDF2 100,000 iterations (better)
+          3 - AES-CBC with Argon2id 64MB memory (default, recommended)
 
         Examples:
           encrypt document.txt document.enc MyP@ssw0rd!
-          encrypt document.txt document.enc MyP@ssw0rd! 2
+          encrypt document.txt document.enc MyP@ssw0rd! 3
           decrypt document.enc document.txt MyP@ssw0rd!
+          dump document.enc
 
         Options:
           -h, --help  Show this help message
@@ -181,12 +314,55 @@ void EncryptFileWithHmac(string inputFile, string outputFile, string password, b
         case Version2:
             EncryptFileWithHmacVersion2(fsInput, fsEncrypted, password);
             break;
+        case Version3:
+            EncryptFileWithHmacVersion3(fsInput, fsEncrypted, password);
+            break;
         default:
             throw new NotSupportedException($"Encryption version {version} not implemented");
     }
 }
 
 void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, string password)
+{
+    var salt = RandomNumberGenerator.GetBytes(32);
+    fsEncrypted.Write(salt);
+
+    using var aes = Aes.Create();
+    aes.Mode = CipherMode.ECB;
+    aes.Padding = PaddingMode.PKCS7;
+    var encryptionKey = Rfc2898DeriveBytes.Pbkdf2(
+        password,
+        salt,
+        10_000,
+        HashAlgorithmName.SHA256,
+        32
+    );
+    aes.Key = encryptionKey;
+    // ECB mode doesn't use IV
+
+    using (var cs = new CryptoStream(fsEncrypted, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true))
+    {
+        fsInput.CopyTo(cs);
+    }
+
+    var hmacKey = Rfc2898DeriveBytes.Pbkdf2(
+        password,
+        salt,
+        10_000,
+        HashAlgorithmName.SHA256,
+        32
+    );
+
+    using var hmac = new HMACSHA256(hmacKey);
+    fsEncrypted.Position = 0;
+    var endOfCiphertext = fsEncrypted.Length;
+    var buffer = new byte[endOfCiphertext];
+    fsEncrypted.ReadExactly(buffer);
+    var tag = hmac.ComputeHash(buffer);
+    fsEncrypted.Write(tag);
+}
+
+void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, string password)
 {
     var salt = RandomNumberGenerator.GetBytes(32);
     fsEncrypted.Write(salt);
@@ -227,7 +403,7 @@ void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, str
     fsEncrypted.Write(tag);
 }
 
-void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, string password)
+void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, string password)
 {
     var salt = RandomNumberGenerator.GetBytes(32);
     fsEncrypted.Write(salt);
@@ -283,12 +459,73 @@ byte DecryptFileWithHmacVerification(string inputFile, string outputFile, string
         case Version2:
             DecryptFileWithHmacVerificationVersion2(fsEncrypted, fsOutput, password);
             return Version2;
+        case Version3:
+            DecryptFileWithHmacVerificationVersion3(fsEncrypted, fsOutput, password);
+            return Version3;
         default:
             throw new NotSupportedException($"Unsupported file version: {version}");
     }
 }
 
 void DecryptFileWithHmacVerificationVersion1(FileStream fsEncrypted, FileStream fsOutput, string password)
+{
+    var salt = new byte[32];
+    fsEncrypted.ReadExactly(salt);
+
+    // No IV for ECB mode
+
+    var hmacKey = Rfc2898DeriveBytes.Pbkdf2(
+        password,
+        salt,
+        10_000,
+        HashAlgorithmName.SHA256,
+        32
+    );
+
+    var fileLength = fsEncrypted.Length;
+    var hmacSize = 32;
+    if (fileLength < 1 + 32 + hmacSize)
+    {
+        throw new InvalidOperationException("File too small to contain valid encrypted data");
+    }
+
+    var endOfCiphertext = fileLength - hmacSize;
+    var storedTag = new byte[hmacSize];
+    fsEncrypted.Position = endOfCiphertext;
+    fsEncrypted.ReadExactly(storedTag);
+
+    using var hmac = new HMACSHA256(hmacKey);
+    fsEncrypted.Position = 0;
+    var buffer = new byte[endOfCiphertext];
+    fsEncrypted.ReadExactly(buffer);
+    var computedTag = hmac.ComputeHash(buffer);
+
+    if (!CryptographicOperations.FixedTimeEquals(computedTag, storedTag))
+    {
+        throw new CryptographicException("Authentication failed - file may be corrupted or tampered with");
+    }
+
+    fsEncrypted.Position = 1 + 32;
+
+    using var aes = Aes.Create();
+    aes.Mode = CipherMode.ECB;
+    aes.Padding = PaddingMode.PKCS7;
+    var encryptionKey = Rfc2898DeriveBytes.Pbkdf2(
+        password,
+        salt,
+        10_000,
+        HashAlgorithmName.SHA256,
+        32
+    );
+    aes.Key = encryptionKey;
+
+    var ciphertextLength = endOfCiphertext - fsEncrypted.Position;
+    using var limitedStream = new LimitedStream(fsEncrypted, ciphertextLength);
+    using var cs = new CryptoStream(limitedStream, aes.CreateDecryptor(), CryptoStreamMode.Read);
+    cs.CopyTo(fsOutput);
+}
+
+void DecryptFileWithHmacVerificationVersion2(FileStream fsEncrypted, FileStream fsOutput, string password)
 {
     var salt = new byte[32];
     fsEncrypted.ReadExactly(salt);
@@ -348,7 +585,7 @@ void DecryptFileWithHmacVerificationVersion1(FileStream fsEncrypted, FileStream 
     cs.CopyTo(fsOutput);
 }
 
-void DecryptFileWithHmacVerificationVersion2(FileStream fsEncrypted, FileStream fsOutput, string password)
+void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream fsOutput, string password)
 {
     var salt = new byte[32];
     fsEncrypted.ReadExactly(salt);
