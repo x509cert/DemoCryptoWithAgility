@@ -115,7 +115,6 @@ function Test-Case {
                 Expected = $ShouldSucceed ? "Success" : "Failure"
                 Actual = $success ? "Success" : "Failure"
             }
-            return $true
         }
         else {
             Write-Host "  ✗ FAIL - Expected $($ShouldSucceed ? 'success' : 'failure') but got $($success ? 'success' : 'failure')" -ForegroundColor $ColorFail
@@ -127,7 +126,6 @@ function Test-Case {
                 Expected = $ShouldSucceed ? "Success" : "Failure"
                 Actual = $success ? "Success" : "Failure"
             }
-            return $false
         }
     }
     catch {
@@ -140,7 +138,6 @@ function Test-Case {
             Expected = $ShouldSucceed ? "Success" : "Failure"
             Actual = "Exception: $_"
         }
-        return $false
     }
 }
 
