@@ -445,7 +445,6 @@ void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, str
         32
     );
     aes.Key = encryptionKey;
-    // ECB mode doesn't use IV
 
     using (var cs = new CryptoStream(fsEncrypted, aes.CreateEncryptor(), CryptoStreamMode.Write, leaveOpen: true))
     {
@@ -461,8 +460,7 @@ void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, str
     );
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it's written by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var endOfCiphertext = fsEncrypted.Length;
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
@@ -503,8 +501,7 @@ void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, str
     );
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it's written by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var endOfCiphertext = fsEncrypted.Length;
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
@@ -520,7 +517,7 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
     argon2.Salt = salt;
     argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536; // 64 MB
+    argon2.MemorySize = 65_536;
     argon2.Iterations = 4;
 
     var encryptionKey = argon2.GetBytes(32);
@@ -545,8 +542,7 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     }
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it's written by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var endOfCiphertext = fsEncrypted.Length;
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
@@ -559,34 +555,27 @@ void EncryptFileWithGcmVersion4(FileStream fsInput, FileStream fsEncrypted, stri
     var salt = GenerateUniqueValue(32, "salt-v4-argon2-gcm");
     fsEncrypted.Write(salt);
 
-    // Derive encryption key using Argon2
     var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
     {
         Salt = salt,
         DegreeOfParallelism = 8,
-        MemorySize = 65_536, // 64 MB
+        MemorySize = 65_536,
         Iterations = 4
     }.GetBytes(32);
 
-    // GCM uses a 12-byte nonce (96 bits is optimal for GCM)
     var nonce = GenerateUniqueValue(12, "nonce-v4-argon2-gcm");
     fsEncrypted.Write(nonce);
 
-    // Read plaintext into memory (GCM requires knowing the plaintext length upfront)
     var plaintext = new byte[fsInput.Length];
     fsInput.ReadExactly(plaintext);
 
-    // Allocate buffer for ciphertext (same size as plaintext)
     var ciphertext = new byte[plaintext.Length];
     
-    // GCM authentication tag (16 bytes / 128 bits)
     var tag = new byte[16];
 
-    // Encrypt using AES-GCM
     using var aesGcm = new AesGcm(encryptionKey, 16);
     aesGcm.Encrypt(nonce, plaintext, ciphertext, tag);
 
-    // Write ciphertext and tag
     fsEncrypted.Write(ciphertext);
     fsEncrypted.Write(tag);
 }
@@ -624,8 +613,6 @@ void DecryptFileWithHmacVerificationVersion1(FileStream fsEncrypted, FileStream 
     var salt = new byte[32];
     fsEncrypted.ReadExactly(salt);
 
-    // No IV for ECB mode
-
     var hmacKey = Rfc2898DeriveBytes.Pbkdf2(
         password,
         salt,
@@ -647,8 +634,7 @@ void DecryptFileWithHmacVerificationVersion1(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it was already read by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
@@ -707,8 +693,7 @@ void DecryptFileWithHmacVerificationVersion2(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it was already read by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
@@ -750,7 +735,7 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password));
     argon2.Salt = salt;
     argon2.DegreeOfParallelism = 8;
-    argon2.MemorySize = 65_536; // 64 MB
+    argon2.MemorySize = 65_536;
     argon2.Iterations = 4;
     var hmacKey = argon2.GetBytes(32);
 
@@ -767,8 +752,7 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    // Start from position 1 to exclude the version byte (it was already read by the caller)
-    fsEncrypted.Position = 1;
+    fsEncrypted.Position = 1; // Skip version #
     var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
@@ -807,12 +791,11 @@ void DecryptFileWithGcmVersion4(FileStream fsEncrypted, FileStream fsOutput, str
     var nonce = new byte[12];
     fsEncrypted.ReadExactly(nonce);
 
-    // Derive encryption key using Argon2
     var encryptionKey = new Argon2id(Encoding.UTF8.GetBytes(password))
     {
         Salt = salt,
         DegreeOfParallelism = 8,
-        MemorySize = 65_536, // 64 MB
+        MemorySize = 65_536,
         Iterations = 4
     }.GetBytes(32);
 
@@ -823,32 +806,19 @@ void DecryptFileWithGcmVersion4(FileStream fsEncrypted, FileStream fsOutput, str
         throw new InvalidOperationException("File too small to contain valid encrypted data");
     }
 
-    // Calculate ciphertext length (total - version - salt - nonce - tag)
     var ciphertextLength = fileLength - 1 - 32 - 12 - tagSize;
     
-    // Read ciphertext
     var ciphertext = new byte[ciphertextLength];
     fsEncrypted.ReadExactly(ciphertext);
 
-    // Read authentication tag
     var tag = new byte[tagSize];
     fsEncrypted.ReadExactly(tag);
 
-    // Allocate buffer for plaintext
     var plaintext = new byte[ciphertextLength];
 
-    // Decrypt and verify using AES-GCM
     using var aesGcm = new AesGcm(encryptionKey, 16);
-    try
-    {
-        aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
-    }
-    catch (CryptographicException)
-    {
-        throw new CryptographicException("Authentication failed - file may be corrupted, tampered with, or password is incorrect");
-    }
+    aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
 
-    // Write decrypted plaintext
     fsOutput.Write(plaintext);
 }
 #endregion
