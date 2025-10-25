@@ -161,15 +161,15 @@ function Test-Version1 {
     Write-Host "`n`n=== Testing Version 1 (AES-ECB/PBKDF2-10k) ===" -ForegroundColor $ColorInfo
     
     Test-Case "V1: Encrypt and decrypt small file" {
-        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v1.enc", $TestPassword, "1")
-        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\small_v1_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v1.enc", $TestPassword, "1", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\small_v1_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\small_v1_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
     
     Test-Case "V1: Encrypt and decrypt large file" {
-        Invoke-Crypto @("encrypt", "$TestDir\large.txt", "$TestDir\large_v1.enc", $TestPassword, "1")
-        Invoke-Crypto @("decrypt", "$TestDir\large_v1.enc", "$TestDir\large_v1_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\large.txt", "$TestDir\large_v1.enc", $TestPassword, "1", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\large_v1.enc", "$TestDir\large_v1_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\large.txt" -Raw) (Get-Content "$TestDir\large_v1_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
@@ -184,15 +184,15 @@ function Test-Version2 {
     Write-Host "`n`n=== Testing Version 2 (AES-CBC/PBKDF2-100k) ===" -ForegroundColor $ColorInfo
     
     Test-Case "V2: Encrypt and decrypt small file" {
-        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v2.enc", $TestPassword, "2")
-        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\small_v2_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v2.enc", $TestPassword, "2", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\small_v2_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\small_v2_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
     
     Test-Case "V2: Encrypt and decrypt medium file" {
-        Invoke-Crypto @("encrypt", "$TestDir\medium.txt", "$TestDir\medium_v2.enc", $TestPassword, "2")
-        Invoke-Crypto @("decrypt", "$TestDir\medium_v2.enc", "$TestDir\medium_v2_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\medium.txt", "$TestDir\medium_v2.enc", $TestPassword, "2", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\medium_v2.enc", "$TestDir\medium_v2_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\medium.txt" -Raw) (Get-Content "$TestDir\medium_v2_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
@@ -207,15 +207,15 @@ function Test-Version3 {
     Write-Host "`n`n=== Testing Version 3 (AES-CBC/Argon2) ===" -ForegroundColor $ColorInfo
     
     Test-Case "V3: Encrypt and decrypt small file" {
-        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v3.enc", $TestPassword, "3")
-        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\small_v3_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v3.enc", $TestPassword, "3", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\small_v3_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\small_v3_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
     
     Test-Case "V3: Encrypt and decrypt binary file" {
-        Invoke-Crypto @("encrypt", "$TestDir\binary.txt", "$TestDir\binary_v3.enc", $TestPassword, "3")
-        Invoke-Crypto @("decrypt", "$TestDir\binary_v3.enc", "$TestDir\binary_v3_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\binary.txt", "$TestDir\binary_v3.enc", $TestPassword, "3", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\binary_v3.enc", "$TestDir\binary_v3_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\binary.txt" -Raw) (Get-Content "$TestDir\binary_v3_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
@@ -230,15 +230,15 @@ function Test-Version4 {
     Write-Host "`n`n=== Testing Version 4 (AES-GCM/Argon2 - Default) ===" -ForegroundColor $ColorInfo
     
     Test-Case "V4: Encrypt and decrypt with explicit version" {
-        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v4.enc", $TestPassword, "4")
-        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\small_v4_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\small_v4.enc", $TestPassword, "4", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\small_v4_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\small_v4_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
     
     Test-Case "V4: Encrypt with default version (should be V4)" {
-        Invoke-Crypto @("encrypt", "$TestDir\large.txt", "$TestDir\large_default.enc", $TestPassword)
-        Invoke-Crypto @("decrypt", "$TestDir\large_default.enc", "$TestDir\large_default_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\large.txt", "$TestDir\large_default.enc", $TestPassword, "4", "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\large_default.enc", "$TestDir\large_default_dec.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\large.txt" -Raw) (Get-Content "$TestDir\large_default_dec.txt" -Raw)
         if ($diff) { throw "Decrypted content doesn't match original" }
     }
@@ -259,31 +259,31 @@ function Test-FailureCases {
     Write-Host "`n`n=== Testing Failure Cases (Should Fail) ===" -ForegroundColor $ColorInfo
     
     Test-Case "FAIL: Wrong password on V1" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\fail_test.txt", $WrongPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\fail_test.txt", $WrongPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Wrong password on V2" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\fail_test.txt", $WrongPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\fail_test.txt", $WrongPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Wrong password on V3" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\fail_test.txt", $WrongPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\fail_test.txt", $WrongPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Wrong password on V4" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\fail_test.txt", $WrongPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\fail_test.txt", $WrongPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Non-existent input file" {
-        Invoke-Crypto @("encrypt", "$TestDir\nonexistent.txt", "$TestDir\output.enc", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\nonexistent.txt", "$TestDir\output.enc", $TestPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Invalid version number" {
-        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\output.enc", $TestPassword, "99")
+        Invoke-Crypto @("encrypt", "$TestDir\small.txt", "$TestDir\output.enc", $TestPassword, "99", "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Decrypt non-encrypted file" {
-        Invoke-Crypto @("decrypt", "$TestDir\small.txt", "$TestDir\fail_test.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small.txt", "$TestDir\fail_test.txt", $TestPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Dump non-encrypted file" {
@@ -291,8 +291,8 @@ function Test-FailureCases {
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Empty file encryption (should work but test handling)" {
-        Invoke-Crypto @("encrypt", "$TestDir\empty.txt", "$TestDir\empty.enc", $TestPassword)
-        Invoke-Crypto @("decrypt", "$TestDir\empty.enc", "$TestDir\empty_dec.txt", $TestPassword)
+        Invoke-Crypto @("encrypt", "$TestDir\empty.txt", "$TestDir\empty.enc", $TestPassword, "--force")
+        Invoke-Crypto @("decrypt", "$TestDir\empty.enc", "$TestDir\empty_dec.txt", $TestPassword, "--force")
         # This should actually succeed, so we expect success
     } -ShouldSucceed $true
     
@@ -301,7 +301,7 @@ function Test-FailureCases {
     } -ShouldSucceed $false
     
     Test-Case "FAIL: Unknown command" {
-        Invoke-Crypto @("invalid", "$TestDir\small.txt", "$TestDir\output.enc", $TestPassword)
+        Invoke-Crypto @("invalid", "$TestDir\small.txt", "$TestDir\output.enc", $TestPassword, "--force")
     } -ShouldSucceed $false
 }
 
@@ -311,8 +311,8 @@ function Test-Tampering {
     
     # Create a test file and encrypt it
     "Tampering test content" | Out-File -FilePath "$TestDir\tamper.txt" -NoNewline
-    Invoke-Crypto @("encrypt", "$TestDir\tamper.txt", "$TestDir\tamper_v2.enc", $TestPassword, "2") | Out-Null
-    Invoke-Crypto @("encrypt", "$TestDir\tamper.txt", "$TestDir\tamper_v4.enc", $TestPassword, "4") | Out-Null
+    Invoke-Crypto @("encrypt", "$TestDir\tamper.txt", "$TestDir\tamper_v2.enc", $TestPassword, "2", "--force") | Out-Null
+    Invoke-Crypto @("encrypt", "$TestDir\tamper.txt", "$TestDir\tamper_v4.enc", $TestPassword, "4", "--force") | Out-Null
     
     Test-Case "TAMPER: Detect modified ciphertext (V2)" {
         # Copy file and modify a byte in the middle
@@ -321,7 +321,7 @@ function Test-Tampering {
         $bytes[50] = ($bytes[50] + 1) % 256  # Modify one byte
         [System.IO.File]::WriteAllBytes("$TestDir\tamper_v2_modified.enc", $bytes)
         
-        Invoke-Crypto @("decrypt", "$TestDir\tamper_v2_modified.enc", "$TestDir\fail_test.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\tamper_v2_modified.enc", "$TestDir\fail_test.txt", $TestPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "TAMPER: Detect modified ciphertext (V4)" {
@@ -331,7 +331,7 @@ function Test-Tampering {
         $bytes[50] = ($bytes[50] + 1) % 256  # Modify one byte
         [System.IO.File]::WriteAllBytes("$TestDir\tamper_v4_modified.enc", $bytes)
         
-        Invoke-Crypto @("decrypt", "$TestDir\tamper_v4_modified.enc", "$TestDir\fail_test.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\tamper_v4_modified.enc", "$TestDir\fail_test.txt", $TestPassword, "--force")
     } -ShouldSucceed $false
     
     Test-Case "TAMPER: Detect truncated file" {
@@ -340,7 +340,7 @@ function Test-Tampering {
         $truncated = $bytes[0..($bytes.Length - 10)]  # Remove last 10 bytes
         [System.IO.File]::WriteAllBytes("$TestDir\tamper_v2_truncated.enc", $truncated)
         
-        Invoke-Crypto @("decrypt", "$TestDir\tamper_v2_truncated.enc", "$TestDir\fail_test.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\tamper_v2_truncated.enc", "$TestDir\fail_test.txt", $TestPassword, "--force")
     } -ShouldSucceed $false
 }
 
@@ -366,25 +366,25 @@ function Test-CrossVersion {
     Write-Host "`n`n=== Testing Cross-Version Compatibility ===" -ForegroundColor $ColorInfo
     
     Test-Case "COMPAT: V1 file can be decrypted correctly" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\compat_v1.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v1.enc", "$TestDir\compat_v1.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\compat_v1.txt" -Raw)
         if ($diff) { throw "Content mismatch" }
     }
     
     Test-Case "COMPAT: V2 file can be decrypted correctly" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\compat_v2.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v2.enc", "$TestDir\compat_v2.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\compat_v2.txt" -Raw)
         if ($diff) { throw "Content mismatch" }
     }
     
     Test-Case "COMPAT: V3 file can be decrypted correctly" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\compat_v3.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v3.enc", "$TestDir\compat_v3.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\compat_v3.txt" -Raw)
         if ($diff) { throw "Content mismatch" }
     }
     
     Test-Case "COMPAT: V4 file can be decrypted correctly" {
-        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\compat_v4.txt", $TestPassword)
+        Invoke-Crypto @("decrypt", "$TestDir\small_v4.enc", "$TestDir\compat_v4.txt", $TestPassword, "--force")
         $diff = Compare-Object (Get-Content "$TestDir\small.txt" -Raw) (Get-Content "$TestDir\compat_v4.txt" -Raw)
         if ($diff) { throw "Content mismatch" }
     }

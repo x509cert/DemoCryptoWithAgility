@@ -17,7 +17,11 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "/?" or "help")
     return 0;
 }
 
-var command = args.Length > 0 ? args[0].ToLower() : "encrypt";
+// Check for force flag
+var forceOverwrite = args.Any(a => a is "-f" or "--force");
+var argsWithoutForce = args.Where(a => a is not "-f" and not "--force").ToArray();
+
+var command = argsWithoutForce.Length > 0 ? argsWithoutForce[0].ToLower() : "encrypt";
 if (command is not ("encrypt" or "decrypt" or "dump"))
 {
     Console.Error.WriteLine($"Unknown command: {command}");
@@ -27,14 +31,14 @@ if (command is not ("encrypt" or "decrypt" or "dump"))
 
 if (command == "dump")
 {
-    if (args.Length < 2)
+    if (argsWithoutForce.Length < 2)
     {
         Console.Error.WriteLine("Insufficient arguments for dump command.");
         ShowHelp();
         return 1;
     }
     
-    var dumpFile = args[1];
+    var dumpFile = argsWithoutForce[1];
     if (!File.Exists(dumpFile))
     {
         Console.Error.WriteLine($"Input file not found: {dumpFile}");
@@ -53,27 +57,29 @@ if (command == "dump")
     }
 }
 
-if (args.Length < 4)
+// For encrypt command, require version; for decrypt, require 4 args
+var requiredArgs = command == "encrypt" ? 5 : 4;
+if (argsWithoutForce.Length < requiredArgs)
 {
-    Console.Error.WriteLine("Insufficient arguments.");
+    Console.Error.WriteLine($"Insufficient arguments for {command} command.");
     ShowHelp();
     return 1;
 }
 
-var inputFile = args[1];
-var outputFile = args[2];
-var password = args[3];
+var inputFile = argsWithoutForce[1];
+var outputFile = argsWithoutForce[2];
+var password = argsWithoutForce[3];
 
 byte versionToUse = DefaultVersion;
-if (command == "encrypt" && args.Length > 4)
+if (command == "encrypt")
 {
-    if (!byte.TryParse(args[4], out versionToUse) || 
+    if (!byte.TryParse(argsWithoutForce[4], out versionToUse) || 
         (versionToUse != V1_AES_ECB_HMAC_PBKDF2_10K && 
          versionToUse != V2_AES_CBC_HMAC_PBKDF2_100K && 
          versionToUse != V3_AES_CBC_HMAC_Argon2 && 
          versionToUse != V4_AES_GCM_Argon2))
     {
-        Console.Error.WriteLine($"Invalid version: {args[4]}. Supported versions are 1 (AES-ECB/PBKDF2-10k), 2 (AES-CBC/PBKDF2-100k), 3 (AES-CBC/Argon2), and 4 (AES-GCM/Argon2).");
+        Console.Error.WriteLine($"Invalid version: {argsWithoutForce[4]}. Supported versions are 1 (AES-ECB/PBKDF2-10k), 2 (AES-CBC/PBKDF2-100k), 3 (AES-CBC/Argon2), and 4 (AES-GCM/Argon2).");
         return 1;
     }
 }
@@ -86,7 +92,7 @@ if (!File.Exists(inputFile))
     return 1;
 }
 
-if (File.Exists(outputFile))
+if (File.Exists(outputFile) && !forceOverwrite)
 {
     Console.Write($"Output file '{outputFile}' already exists. Overwrite? (y/n): ");
     var response = Console.ReadLine()?.ToLower();
@@ -311,24 +317,26 @@ void ShowHelp()
         File Encryption Utility
 
         Usage:
-          encrypt <inputFile> <outputFile> <password> [version]  - Encrypt a file
-          decrypt <inputFile> <outputFile> <password>            - Decrypt a file
-          dump <inputFile>                                        - Dump encrypted file metadata
+          encrypt <inputFile> <outputFile> <password> <version> [-f|--force]  - Encrypt a file
+          decrypt <inputFile> <outputFile> <password> [-f|--force]            - Decrypt a file
+          dump <inputFile>                                                     - Dump encrypted file metadata
 
-        Version options:
+        Version options (required for encrypt):
           1 - AES-ECB with PBKDF2 10,000 iterations (legacy, least secure)
           2 - AES-CBC with PBKDF2 100,000 iterations (better)
           3 - AES-CBC with Argon2 64MB memory (good)
-          4 - AES-GCM with Argon2 64MB memory (default, recommended, AEAD)
-
-        Examples:
-          encrypt document.txt document.enc MyP@ssw0rd!
-          encrypt document.txt document.enc MyP@ssw0rd! 4
-          decrypt document.enc document.txt MyP@ssw0rd!
-          dump document.enc
+          4 - AES-GCM with Argon2 64MB memory (recommended, AEAD)
 
         Options:
-          -h, --help  Show this help message
+          -f, --force  Overwrite output file without prompting
+          -h, --help   Show this help message
+
+        Examples:
+          encrypt document.txt document.enc MyP@ssw0rd! 4
+          encrypt document.txt document.enc MyP@ssw0rd! 4 --force
+          decrypt document.enc document.txt MyP@ssw0rd!
+          decrypt document.enc document.txt MyP@ssw0rd! -f
+          dump document.enc
         """);
 }
 #endregion
@@ -825,4 +833,4 @@ class LimitedStream : Stream
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
-#endregion
+#endregion#endregion
