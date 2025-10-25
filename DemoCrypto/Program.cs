@@ -392,9 +392,10 @@ void EncryptFileWithHmacVersion1(FileStream fsInput, FileStream fsEncrypted, str
     );
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
+    // Start from position 1 to exclude the version byte (it's written by the caller)
+    fsEncrypted.Position = 1;
     var endOfCiphertext = fsEncrypted.Length;
-    var buffer = new byte[endOfCiphertext];
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var tag = hmac.ComputeHash(buffer);
     fsEncrypted.Write(tag);
@@ -433,9 +434,10 @@ void EncryptFileWithHmacVersion2(FileStream fsInput, FileStream fsEncrypted, str
     );
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
+    // Start from position 1 to exclude the version byte (it's written by the caller)
+    fsEncrypted.Position = 1;
     var endOfCiphertext = fsEncrypted.Length;
-    var buffer = new byte[endOfCiphertext];
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var tag = hmac.ComputeHash(buffer);
     fsEncrypted.Write(tag);
@@ -474,9 +476,10 @@ void EncryptFileWithHmacVersion3(FileStream fsInput, FileStream fsEncrypted, str
     }
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
+    // Start from position 1 to exclude the version byte (it's written by the caller)
+    fsEncrypted.Position = 1;
     var endOfCiphertext = fsEncrypted.Length;
-    var buffer = new byte[endOfCiphertext];
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var tag = hmac.ComputeHash(buffer);
     fsEncrypted.Write(tag);
@@ -575,8 +578,9 @@ void DecryptFileWithHmacVerificationVersion1(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
-    var buffer = new byte[endOfCiphertext];
+    // Start from position 1 to exclude the version byte (it was already read by the caller)
+    fsEncrypted.Position = 1;
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
 
@@ -634,8 +638,9 @@ void DecryptFileWithHmacVerificationVersion2(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
-    var buffer = new byte[endOfCiphertext];
+    // Start from position 1 to exclude the version byte (it was already read by the caller)
+    fsEncrypted.Position = 1;
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
 
@@ -693,8 +698,9 @@ void DecryptFileWithHmacVerificationVersion3(FileStream fsEncrypted, FileStream 
     fsEncrypted.ReadExactly(storedTag);
 
     using var hmac = new HMACSHA256(hmacKey);
-    fsEncrypted.Position = 0;
-    var buffer = new byte[endOfCiphertext];
+    // Start from position 1 to exclude the version byte (it was already read by the caller)
+    fsEncrypted.Position = 1;
+    var buffer = new byte[endOfCiphertext - 1];
     fsEncrypted.ReadExactly(buffer);
     var computedTag = hmac.ComputeHash(buffer);
 

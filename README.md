@@ -16,8 +16,8 @@ This project demonstrates crypto agility by supporting four different encryption
 |---------|-----------|----------------|----------------|----------|
 | **Version 1** | AES-ECB | PBKDF2 (10k iterations) | ⚠️ Legacy | Backward compatibility only |
 | **Version 2** | AES-CBC + HMAC | PBKDF2 (100k iterations) | ✅ Good | Transitional security |
-| **Version 3** | AES-CBC + HMAC | Argon2id (64MB) | ✅ Better | Modern CBC with Argon2 |
-| **Version 4** | AES-GCM (AEAD) | Argon2id (64MB) | ✨ Recommended | Modern authenticated encryption |
+| **Version 3** | AES-CBC + HMAC | Argon2 (64MB) | ✅ Better | Modern CBC with Argon2 |
+| **Version 4** | AES-GCM (AEAD) | Argon2 (64MB) | ✨ Recommended | Modern authenticated encryption |
 
 The utility automatically detects which version was used to encrypt a file and applies the correct decryption method, while always defaulting to the most secure version for new encryptions.
 

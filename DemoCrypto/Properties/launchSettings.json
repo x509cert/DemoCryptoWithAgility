@@ -2,7 +2,7 @@
   "profiles": {
     "DemoCrypto": {
       "commandName": "Project",
-      "commandLineArgs": "encrypt .\\test.txt .\\test.enc MyPassword!"
+      "commandLineArgs": "decrypt .\\test.enc1 con \"MyPa$$word!\""
     }
   }
 }
