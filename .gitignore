@@ -361,3 +361,13 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/TestFiles/binary_v3.enc
+*.enc
+/TestFiles/large_default.enc
+/TestFiles/medium_v2.enc
+/TestFiles/large_v1.enc
+/TestFiles/small_v1.enc
+/TestFiles/small_v2.enc
+/TestFiles/small_v3.enc
+/TestFiles/small_v4.enc
+*.csv
